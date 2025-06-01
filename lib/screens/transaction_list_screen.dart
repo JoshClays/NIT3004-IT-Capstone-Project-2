@@ -202,92 +202,307 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   }
 
   Future<void> _showFilterDialog(BuildContext context, List<String> categories) async {
+    // Create local copies of the filter state for the dialog
+    String? tempSelectedCategory = _selectedCategory;
+    DateTimeRange? tempDateRange = _dateRange;
+    bool tempShowIncome = _showIncome;
+    bool tempShowExpense = _showExpense;
+
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Filter Transactions'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Transaction Type'),
-              Row(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Filter categories based on selected transaction types
+          List<String> availableCategories = [];
+          
+          if (tempShowIncome && tempShowExpense) {
+            // Show all categories if both are selected
+            availableCategories = categories;
+          } else if (tempShowIncome && !tempShowExpense) {
+            // Show only categories that have income transactions
+            availableCategories = widget.transactions
+                .where((t) => t.isIncome)
+                .map((t) => t.category)
+                .toSet()
+                .toList()
+              ..sort();
+          } else if (!tempShowIncome && tempShowExpense) {
+            // Show only categories that have expense transactions
+            availableCategories = widget.transactions
+                .where((t) => !t.isIncome)
+                .map((t) => t.category)
+                .toSet()
+                .toList()
+              ..sort();
+          } else {
+            // If neither is selected, show no categories
+            availableCategories = [];
+          }
+
+          // Reset selected category if it's not in the available categories
+          if (tempSelectedCategory != null && !availableCategories.contains(tempSelectedCategory)) {
+            tempSelectedCategory = null;
+          }
+
+          return AlertDialog(
+            title: const Text('Filter Transactions'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Checkbox(
-                    value: _showIncome,
-                    onChanged: (value) {
-                      setState(() => _showIncome = value ?? true);
-                    },
+                  const Text(
+                    'Transaction Type',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const Text('Income'),
-                  const SizedBox(width: 16),
-                  Checkbox(
-                    value: _showExpense,
-                    onChanged: (value) {
-                      setState(() => _showExpense = value ?? true);
-                    },
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: tempShowIncome,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            tempShowIncome = value ?? true;
+                            // Reset category when transaction type changes
+                            tempSelectedCategory = null;
+                          });
+                        },
+                      ),
+                      const Text('Income'),
+                      const SizedBox(width: 16),
+                      Checkbox(
+                        value: tempShowExpense,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            tempShowExpense = value ?? true;
+                            // Reset category when transaction type changes
+                            tempSelectedCategory = null;
+                          });
+                        },
+                      ),
+                      const Text('Expense'),
+                    ],
                   ),
-                  const Text('Expense'),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Date Range',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        tempDateRange == null
+                            ? 'Select Date Range'
+                            : '${DateFormat('MMM dd, yyyy').format(tempDateRange!.start)} - '
+                            '${DateFormat('MMM dd, yyyy').format(tempDateRange!.end)}',
+                        style: TextStyle(
+                          color: tempDateRange == null ? Colors.grey : Colors.black,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.calendar_today,
+                        color: tempDateRange == null ? Colors.grey : Colors.blue,
+                      ),
+                      onTap: () async {
+                        final DateTimeRange? picked = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now(),
+                          initialDateRange: tempDateRange,
+                        );
+                        if (picked != null) {
+                          setDialogState(() => tempDateRange = picked);
+                        }
+                      },
+                    ),
+                  ),
+                  if (tempDateRange != null) 
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 4),
+                          const Text('Date range selected', style: TextStyle(color: Colors.green, fontSize: 12)),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              setDialogState(() => tempDateRange = null);
+                            },
+                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Category',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: availableCategories.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: Text(
+                              'Please select transaction type first',
+                              style: TextStyle(color: Colors.grey, fontSize: 14),
+                            ),
+                          )
+                        : DropdownButton<String>(
+                            value: tempSelectedCategory,
+                            hint: Text(
+                              tempShowIncome && !tempShowExpense
+                                  ? 'All Income Categories'
+                                  : !tempShowIncome && tempShowExpense
+                                      ? 'All Expense Categories'
+                                      : 'All Categories',
+                            ),
+                            isExpanded: true,
+                            underline: const SizedBox(),
+                            items: [
+                              DropdownMenuItem(
+                                value: null,
+                                child: Text(
+                                  tempShowIncome && !tempShowExpense
+                                      ? 'All Income Categories'
+                                      : !tempShowIncome && tempShowExpense
+                                          ? 'All Expense Categories'
+                                          : 'All Categories',
+                                ),
+                              ),
+                              ...availableCategories.map((category) => DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
+                              )),
+                            ],
+                            onChanged: (value) {
+                              setDialogState(() => tempSelectedCategory = value);
+                            },
+                          ),
+                  ),
+                  if (tempSelectedCategory != null) 
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 4),
+                          Text('Category: $tempSelectedCategory', style: const TextStyle(color: Colors.green, fontSize: 12)),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              setDialogState(() => tempSelectedCategory = null);
+                            },
+                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (availableCategories.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Available categories (${availableCategories.length}): ${availableCategories.join(', ')}',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  // Show current filter summary
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Current Filters:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _getFilterSummary(tempSelectedCategory, tempDateRange, tempShowIncome, tempShowExpense),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Text('Date Range'),
-              ListTile(
-                title: Text(
-                  _dateRange == null
-                      ? 'Select Date Range'
-                      : '${DateFormat('MMM dd, yyyy').format(_dateRange!.start)} - '
-                      '${DateFormat('MMM dd, yyyy').format(_dateRange!.end)}',
-                ),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _selectDateRange(context),
-              ),
-              const SizedBox(height: 16),
-              const Text('Category'),
-              DropdownButton<String>(
-                value: _selectedCategory,
-                hint: const Text('All Categories'),
-                items: [
-                  const DropdownMenuItem(
-                    value: null,
-                    child: Text('All Categories'),
-                  ),
-                  ...categories.map((category) => DropdownMenuItem(
-                    value: category,
-                    child: Text(category),
-                  )),
-                ],
-                onChanged: (value) {
-                  setState(() => _selectedCategory = value);
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setDialogState(() {
+                    tempDateRange = null;
+                    tempSelectedCategory = null;
+                    tempShowIncome = true;
+                    tempShowExpense = true;
+                  });
                 },
+                child: const Text('Reset All'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _dateRange = tempDateRange;
+                    _selectedCategory = tempSelectedCategory;
+                    _showIncome = tempShowIncome;
+                    _showExpense = tempShowExpense;
+                    _applyFilters();
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text('Apply'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _dateRange = null;
-                _selectedCategory = null;
-                _showIncome = true;
-                _showExpense = true;
-                _applyFilters();
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Reset'),
-          ),
-          TextButton(
-            onPressed: () {
-              _applyFilters();
-              Navigator.pop(context);
-            },
-            child: const Text('Apply'),
-          ),
-        ],
+          );
+        },
       ),
     );
+  }
+
+  String _getFilterSummary(String? category, DateTimeRange? dateRange, bool showIncome, bool showExpense) {
+    final List<String> filters = [];
+    
+    if (category != null) {
+      filters.add('Category: $category');
+    }
+    
+    if (dateRange != null) {
+      filters.add('Date: ${DateFormat('MMM dd').format(dateRange.start)} - ${DateFormat('MMM dd').format(dateRange.end)}');
+    }
+    
+    if (!showIncome || !showExpense) {
+      if (showIncome && !showExpense) {
+        filters.add('Income only');
+      } else if (!showIncome && showExpense) {
+        filters.add('Expenses only');
+      }
+    }
+    
+    return filters.isEmpty ? 'No filters applied' : filters.join('\n');
   }
 
   @override
@@ -297,6 +512,12 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
         .toSet()
         .toList()
       ..sort();
+
+    // Check if any filters are active
+    final hasActiveFilters = _selectedCategory != null || 
+                           _dateRange != null || 
+                           !_showIncome || 
+                           !_showExpense;
 
     return Scaffold(
       appBar: AppBar(
@@ -326,64 +547,81 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 ),
               ],
             ),
-          IconButton(
-            icon: const Icon(Icons.filter_alt),
-            onPressed: () => _showFilterDialog(context, categories),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_alt),
+                onPressed: () => _showFilterDialog(context, categories),
+              ),
+              if (hasActiveFilters)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
       body: _filteredTransactions.isEmpty
           ? const Center(
-        child: Text(
-          'No transactions found\nTry adjusting your filters',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-      )
+              child: Text(
+                'No transactions found\nTry adjusting your filters',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            )
           : Column(
-        children: [
-          _buildCategoryChart(_filteredTransactions),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _filteredTransactions.length,
-              itemBuilder: (context, index) {
-                final t = _filteredTransactions[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: t.isIncome
-                            ? Colors.green[50]
-                            : Colors.red[50],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        t.isIncome
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        color: t.isIncome ? Colors.green : Colors.red,
-                      ),
-                    ),
-                    title: Text(t.title),
-                    subtitle: Text(
-                        '${t.category} • ${DateFormat('MMM dd, yyyy').format(t.date)}'),
-                    trailing: Text(
-                      '${t.isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: t.isIncome ? Colors.green : Colors.red,
-                      ),
-                    ),
+              children: [
+                _buildCategoryChart(_filteredTransactions),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _filteredTransactions.length,
+                    itemBuilder: (context, index) {
+                      final t = _filteredTransactions[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: t.isIncome
+                                  ? Colors.green[50]
+                                  : Colors.red[50],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              t.isIncome
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              color: t.isIncome ? Colors.green : Colors.red,
+                            ),
+                          ),
+                          title: Text(t.title),
+                          subtitle: Text(
+                              '${t.category} • ${DateFormat('MMM dd, yyyy').format(t.date)}'),
+                          trailing: Text(
+                            '${t.isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: t.isIncome ? Colors.green : Colors.red,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

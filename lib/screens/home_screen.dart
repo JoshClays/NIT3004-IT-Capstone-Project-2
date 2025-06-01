@@ -672,53 +672,150 @@ class _HomeScreenState extends State<HomeScreen> {
             t.date.isBefore(budget.endDate.add(const Duration(days: 1))))
         .toList();
 
+    // Sort transactions by date (most recent first)
+    transactions.sort((a, b) => b.date.compareTo(a.date));
+
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (context) => AlertDialog(
-        title: Text(budget.category),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            _buildBudgetDetailRow('Budget Limit:', '\$${budget.budget_limit.toStringAsFixed(2)}'),
-            _buildBudgetDetailRow('Amount Spent:', '\$${budget.spent.toStringAsFixed(2)}'),
-            _buildBudgetDetailRow(
-              'Remaining:',
-              '\$${(budget.budget_limit - budget.spent).toStringAsFixed(2)}',
-              budget.spent > budget.budget_limit ? Colors.red : Colors.green,
+            Icon(
+              budget.spent > budget.budget_limit ? Icons.warning : Icons.account_balance_wallet,
+              color: budget.spent > budget.budget_limit ? Colors.red : Colors.blue,
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Recent Transactions:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 200,
-              child: transactions.isEmpty
-                  ? const Center(
-                child: Text(
-                  'No transactions in this category',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              )
-                  : ListView.builder(
-                shrinkWrap: true,
-                itemCount: transactions.length > 3 ? 3 : transactions.length,
-                itemBuilder: (context, index) {
-                  final t = transactions[index];
-                  return ListTile(
-                    title: Text(t.title),
-                    subtitle: Text(DateFormat('MMM dd').format(t.date)),
-                    trailing: Text(
-                      '-\$${t.amount.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  );
-                },
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                budget.category,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Budget summary section
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: budget.spent > budget.budget_limit ? Colors.red.shade50 : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: budget.spent > budget.budget_limit ? Colors.red.shade200 : Colors.blue.shade200,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBudgetDetailRow('Budget Limit:', '\$${budget.budget_limit.toStringAsFixed(2)}'),
+                    _buildBudgetDetailRow('Amount Spent:', '\$${budget.spent.toStringAsFixed(2)}'),
+                    _buildBudgetDetailRow(
+                      budget.spent > budget.budget_limit ? 'Over by:' : 'Remaining:',
+                      budget.spent > budget.budget_limit 
+                          ? '\$${(budget.spent - budget.budget_limit).toStringAsFixed(2)}'
+                          : '\$${(budget.budget_limit - budget.spent).toStringAsFixed(2)}',
+                      budget.spent > budget.budget_limit ? Colors.red : Colors.green,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Period: ${DateFormat('MMM dd, yyyy').format(budget.startDate)} - ${DateFormat('MMM dd, yyyy').format(budget.endDate)}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text(
+                    'Recent Transactions',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '(${transactions.length} total)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Transactions list
+              Container(
+                height: 200,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: transactions.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long, size: 48, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text(
+                              'No transactions found',
+                              style: TextStyle(color: Colors.grey, fontSize: 16),
+                            ),
+                            Text(
+                              'in this budget period',
+                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: transactions.length,
+                        itemBuilder: (context, index) {
+                          final t = transactions[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            child: ListTile(
+                              dense: true,
+                              leading: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_downward,
+                                  color: Colors.red,
+                                  size: 16,
+                                ),
+                              ),
+                              title: Text(
+                                t.title,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                              ),
+                              subtitle: Text(
+                                DateFormat('MMM dd, yyyy').format(t.date),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              trailing: Text(
+                                '-\$${t.amount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
