@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/transaction.dart';
 import '../services/export_service.dart';
+import '../services/database_services.dart';
+import 'add_transaction_screen.dart';
 
 class TransactionListScreen extends StatefulWidget {
   final List<Transaction> transactions;
@@ -505,6 +507,122 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     return filters.isEmpty ? 'No filters applied' : filters.join('\n');
   }
 
+  Future<void> _editTransaction(Transaction transaction) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddTransactionScreen(
+          isIncome: transaction.isIncome,
+          transaction: transaction,
+        ),
+      ),
+    );
+
+    if (result == true) {
+      // Refresh the transaction list
+      _refreshTransactions();
+    }
+  }
+
+  Future<void> _deleteTransaction(Transaction transaction) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Transaction'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Are you sure you want to delete this transaction?'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    transaction.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${transaction.category} • ${DateFormat('MMM dd, yyyy').format(transaction.date)}',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${transaction.isIncome ? '+' : '-'}\$${transaction.amount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: transaction.isIncome ? Colors.green : Colors.red,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This action cannot be undone.',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await DatabaseService.instance.deleteTransaction(transaction.id!);
+        _refreshTransactions();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Transaction deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting transaction: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _refreshTransactions() {
+    // Trigger a refresh by notifying the parent to reload data
+    // Since this screen receives transactions as a parameter, we need to go back
+    // and let the parent handle the refresh
+    Navigator.pop(context, true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final categories = widget.transactions
@@ -608,12 +726,48 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                           title: Text(t.title),
                           subtitle: Text(
                               '${t.category} • ${DateFormat('MMM dd, yyyy').format(t.date)}'),
-                          trailing: Text(
-                            '${t.isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: t.isIncome ? Colors.green : Colors.red,
-                            ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${t.isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: t.isIncome ? Colors.green : Colors.red,
+                                ),
+                              ),
+                              PopupMenuButton<String>(
+                                onSelected: (value) async {
+                                  if (value == 'edit') {
+                                    await _editTransaction(t);
+                                  } else if (value == 'delete') {
+                                    await _deleteTransaction(t);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('Edit'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, size: 18, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('Delete', style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       );

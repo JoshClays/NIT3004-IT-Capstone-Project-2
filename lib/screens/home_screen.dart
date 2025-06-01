@@ -7,6 +7,7 @@ import '../models/transaction.dart';
 import '../models/budget.dart';
 import '../services/database_services.dart';
 import '../services/auth_service.dart';
+import 'category_management_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -167,9 +168,41 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Expense Tracker'),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'categories') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CategoryManagementScreen(),
+                  ),
+                );
+              } else if (value == 'refresh') {
+                _loadData();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'categories',
+                child: Row(
+                  children: [
+                    Icon(Icons.category, size: 18),
+                    SizedBox(width: 8),
+                    Text('Manage Categories'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'refresh',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, size: 18),
+                    SizedBox(width: 8),
+                    Text('Refresh'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -650,12 +683,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _navigateToTransactionList() async {
     try {
-      await Navigator.push(
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => TransactionListScreen(transactions: _transactions),
         ),
       );
+      
+      // If result is true, it means transactions were modified, so reload data
+      if (result == true) {
+        _loadData();
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),
