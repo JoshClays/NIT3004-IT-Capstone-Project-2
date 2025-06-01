@@ -99,34 +99,60 @@ class _HomeScreenState extends State<HomeScreen> {
     final now = DateTime.now();
 
     for (var budget in budgets) {
+      // Only calculate spending for active budgets (current date is between start and end date)
+      if (now.isAfter(budget.startDate) && now.isBefore(budget.endDate.add(const Duration(days: 1)))) {
+        // Filter transactions that are within the budget date range and match the category
+        final categoryExpenses = transactions
+            .where((t) => 
+                !t.isIncome && 
+                t.category == budget.category &&
+                t.date.isAfter(budget.startDate.subtract(const Duration(days: 1))) &&
+                t.date.isBefore(budget.endDate.add(const Duration(days: 1))))
+            .fold(0.0, (sum, t) => sum + t.amount);
 
-      if (now.isAfter(budget.startDate)) {
-      final categoryExpenses = transactions
-          .where((t) => !t.isIncome && t.category == budget.category)
-          .fold(0.0, (sum, t) => sum + t.amount);
+        final updatedBudget = Budget(
+          id: budget.id,
+          category: budget.category,
+          budget_limit: budget.budget_limit,
+          spent: categoryExpenses,
+          startDate: budget.startDate,
+          endDate: budget.endDate,
+        );
 
-
-      final updatedBudget = Budget(
-      id: budget.id,
-      category: budget.category,
-      budget_limit: budget.budget_limit,
-      spent: categoryExpenses,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      );
-
-      // Only update if changed
-      if (budget.spent != categoryExpenses) {
-      await DatabaseService.instance.updateBudget(updatedBudget);
-      }
-      updatedBudgets.add(updatedBudget);
+        // Only update if changed
+        if (budget.spent != categoryExpenses) {
+          await DatabaseService.instance.updateBudget(updatedBudget);
+        }
+        updatedBudgets.add(updatedBudget);
       } else {
-      updatedBudgets.add(budget);
-      }
-      }
+        // For inactive budgets, still calculate their spending for historical accuracy
+        final categoryExpenses = transactions
+            .where((t) => 
+                !t.isIncome && 
+                t.category == budget.category &&
+                t.date.isAfter(budget.startDate.subtract(const Duration(days: 1))) &&
+                t.date.isBefore(budget.endDate.add(const Duration(days: 1))))
+            .fold(0.0, (sum, t) => sum + t.amount);
 
-      return updatedBudgets;
+        final updatedBudget = Budget(
+          id: budget.id,
+          category: budget.category,
+          budget_limit: budget.budget_limit,
+          spent: categoryExpenses,
+          startDate: budget.startDate,
+          endDate: budget.endDate,
+        );
+
+        // Only update if changed
+        if (budget.spent != categoryExpenses) {
+          await DatabaseService.instance.updateBudget(updatedBudget);
+        }
+        updatedBudgets.add(updatedBudget);
       }
+    }
+
+    return updatedBudgets;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -639,7 +665,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showBudgetDetails(BuildContext context, Budget budget) {
     final transactions = _transactions
-        .where((t) => !t.isIncome && t.category == budget.category)
+        .where((t) => 
+            !t.isIncome && 
+            t.category == budget.category &&
+            t.date.isAfter(budget.startDate.subtract(const Duration(days: 1))) &&
+            t.date.isBefore(budget.endDate.add(const Duration(days: 1))))
         .toList();
 
     showDialog(
