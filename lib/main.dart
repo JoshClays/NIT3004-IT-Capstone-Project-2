@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../screens/auth/login.dart';
+import '../screens/main_navigation_screen.dart';
 import '../services/database_services.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart';
+import '../theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,39 +20,68 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Money Manager App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          centerTitle: true,
-          backgroundColor: Colors.white,
-          iconTheme: IconThemeData(color: Colors.black),
-          titleTextStyle: TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        ),
-      ),
-      home: LoginScreen(),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system, // Automatically switch based on system settings
+      home: const AuthChecker(),
     );
+  }
+}
+
+class AuthChecker extends StatefulWidget {
+  const AuthChecker({super.key});
+
+  @override
+  State<AuthChecker> createState() => _AuthCheckerState();
+}
+
+class _AuthCheckerState extends State<AuthChecker> {
+  bool _isLoading = true;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthStatus();
+  }
+
+  Future<void> _checkAuthStatus() async {
+    try {
+      final authService = AuthService();
+      final user = await authService.getCurrentUser();
+      
+      if (user != null) {
+        // User is already logged in (session still active)
+        setState(() {
+          _isLoggedIn = true;
+          _isLoading = false;
+        });
+      } else {
+        // No active session - require login
+        setState(() {
+          _isLoggedIn = false;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // If there's an error, go to login screen
+      setState(() {
+        _isLoggedIn = false;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return _isLoggedIn ? const MainNavigationScreen() : const LoginScreen();
   }
 }

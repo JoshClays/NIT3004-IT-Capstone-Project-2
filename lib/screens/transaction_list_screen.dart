@@ -4,34 +4,68 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models/transaction.dart';
 import '../services/export_service.dart';
 import '../services/database_services.dart';
+import '../services/auth_service.dart';
 import 'add_transaction_screen.dart';
 
 class TransactionListScreen extends StatefulWidget {
-  final List<Transaction> transactions;
+  final List<Transaction>? transactions;
 
-  const TransactionListScreen({super.key, required this.transactions});
+  const TransactionListScreen({super.key, this.transactions});
 
   @override
   State<TransactionListScreen> createState() => _TransactionListScreenState();
 }
 
 class _TransactionListScreenState extends State<TransactionListScreen> {
+  List<Transaction> _allTransactions = [];
   late List<Transaction> _filteredTransactions;
   DateTimeRange? _dateRange;
   String? _selectedCategory;
   bool _showIncome = true;
   bool _showExpense = true;
   bool _isExporting = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _filteredTransactions = widget.transactions;
+    if (widget.transactions != null) {
+      _allTransactions = widget.transactions!;
+      _filteredTransactions = _allTransactions;
+      _isLoading = false;
+    } else {
+      _loadTransactions();
+    }
+  }
+
+  Future<void> _loadTransactions() async {
+    try {
+      final authService = AuthService();
+      final user = await authService.getCurrentUser();
+      
+      if (user != null) {
+        final transactions = await DatabaseService.instance.getTransactions(user.id!);
+        setState(() {
+          _allTransactions = transactions;
+          _filteredTransactions = transactions;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading transactions: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   void _applyFilters() {
     setState(() {
-      _filteredTransactions = widget.transactions.where((t) {
+      _filteredTransactions = _allTransactions.where((t) {
         final dateInRange = _dateRange == null ||
             (t.date.isAfter(_dateRange!.start) &&
                 t.date.isBefore(_dateRange!.end.add(const Duration(days: 1))));
@@ -222,7 +256,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
             availableCategories = categories;
           } else if (tempShowIncome && !tempShowExpense) {
             // Show only categories that have income transactions
-            availableCategories = widget.transactions
+            availableCategories = _allTransactions
                 .where((t) => t.isIncome)
                 .map((t) => t.category)
                 .toSet()
@@ -230,7 +264,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               ..sort();
           } else if (!tempShowIncome && tempShowExpense) {
             // Show only categories that have expense transactions
-            availableCategories = widget.transactions
+            availableCategories = _allTransactions
                 .where((t) => !t.isIncome)
                 .map((t) => t.category)
                 .toSet()
@@ -617,15 +651,21 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   }
 
   void _refreshTransactions() {
-    // Trigger a refresh by notifying the parent to reload data
-    // Since this screen receives transactions as a parameter, we need to go back
-    // and let the parent handle the refresh
-    Navigator.pop(context, true);
+    // Reload transactions from database
+    _loadTransactions();
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = widget.transactions
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final categories = _allTransactions
         .map((t) => t.category)
         .toSet()
         .toList()

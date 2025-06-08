@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/custom_button.dart';
-import '../home_screen.dart';
+import '../main_navigation_screen.dart';
 
 class ConfirmationScreen extends StatelessWidget {
   final String name;
@@ -57,7 +57,7 @@ class ConfirmationScreen extends StatelessWidget {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => HomeScreen(),
+                      builder: (context) => const MainNavigationScreen(),
                     ),
                   );
                 },

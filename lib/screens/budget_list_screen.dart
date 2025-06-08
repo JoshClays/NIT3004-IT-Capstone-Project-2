@@ -6,22 +6,51 @@ import '../services/database_services.dart';
 import '../services/auth_service.dart';
 
 class BudgetListScreen extends StatefulWidget {
-  final List<Budget> budgets;
+  final List<Budget>? budgets;
 
-  const BudgetListScreen({super.key, required this.budgets});
+  const BudgetListScreen({super.key, this.budgets});
 
   @override
   State<BudgetListScreen> createState() => _BudgetListScreenState();
 }
 
 class _BudgetListScreenState extends State<BudgetListScreen> {
-  late List<Budget> _budgets;
-  bool _isLoading = false;
+  List<Budget> _budgets = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _budgets = widget.budgets;
+    if (widget.budgets != null) {
+      _budgets = widget.budgets!;
+      _isLoading = false;
+    } else {
+      _loadBudgets();
+    }
+  }
+
+  Future<void> _loadBudgets() async {
+    try {
+      final authService = AuthService();
+      final user = await authService.getCurrentUser();
+      
+      if (user != null) {
+        final budgets = await DatabaseService.instance.getBudgets(user.id!);
+        setState(() {
+          _budgets = budgets;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading budgets: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   Future<void> _deleteBudget(int id) async {

@@ -3,7 +3,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../screens/auth/register.dart';
 import '../../widgets/custom_button.dart';
-import '../../screens/home_screen.dart';
+import '../main_navigation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,7 +17,27 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _rememberMe = false;
   final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final savedEmail = await _authService.getSavedEmail();
+    final rememberMe = await _authService.isRememberMeEnabled();
+    
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      emailController.text = savedEmail;
+    }
+    
+    setState(() {
+      _rememberMe = rememberMe;
+    });
+  }
 
   Future<void> _loginUser() async {
     if (!_formKey.currentState!.validate()) return;
@@ -28,6 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await _authService.loginUser(
         emailController.text,
         passwordController.text,
+        rememberMe: _rememberMe,
       );
 
       if (!mounted) return;
@@ -35,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -117,19 +138,37 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 20),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      // Forgot password functionality
-                    },
-                    child: const Text(
-                      'Forgot Password?',
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) {
+                        setState(() {
+                          _rememberMe = value ?? false;
+                        });
+                      },
+                    ),
+                    const Text(
+                      'Remember me',
                       style: TextStyle(
-                        color: Colors.blue,
+                        color: Colors.grey,
+                        fontSize: 14,
                       ),
                     ),
-                  ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        // Forgot password functionality
+                      },
+                      child: const Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 30),
                 CustomButton(
