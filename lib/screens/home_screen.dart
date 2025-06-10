@@ -590,6 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
               category: budget.category,
               spent: budget.spent,
               limit: budget.budget_limit,
+
               onTap: () => _showBudgetDetails(budget),
             ),
           );

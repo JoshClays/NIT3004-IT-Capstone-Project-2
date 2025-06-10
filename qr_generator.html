@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Manager QR Code Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .qr-container {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        #qrcode {
+            margin: 20px auto;
+        }
+        .download-btn {
+            background: #28a745;
+            margin-top: 10px;
+        }
+        .download-btn:hover {
+            background: #218838;
+        }
+        .preview {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+        }
+        .templates {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .template {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .template:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .template.active {
+            border-color: #667eea;
+            background: #e3f2fd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💰 Money Manager QR Code Generator</h1>
+        
+        <div class="input-group">
+            <label for="githubUrl">GitHub Release URL:</label>
+            <input type="text" id="githubUrl" placeholder="https://github.com/JoshClays/NIT3004-IT-Capstone-Project-2/releases/latest">
+        </div>
+
+        <div class="input-group">
+            <label>Quick Templates:</label>
+            <div class="templates">
+                <div class="template" onclick="setTemplate('releases')">
+                    <strong>Release Page</strong><br>
+                    <small>/releases/latest</small>
+                </div>
+                <div class="template" onclick="setTemplate('direct')">
+                    <strong>Direct APK</strong><br>
+                    <small>/download/v1.0.0/app-release.apk</small>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="generateQR()">🔄 Generate QR Code</button>
+        
+        <div class="preview" id="preview">
+            <strong>URL Preview:</strong> <span id="previewUrl"></span>
+        </div>
+        
+        <div class="qr-container" id="qrContainer" style="display: none;">
+            <h3>📱 Your QR Code</h3>
+            <div id="qrcode"></div>
+            <p><strong>Instructions:</strong></p>
+            <p>1. Right-click the QR code → "Save image as..."</p>
+            <p>2. Share this QR code for easy app downloads!</p>
+            <p>3. Users scan → tap link → download APK</p>
+        </div>
+    </div>
+
+    <script>
+        let currentTemplate = '';
+
+        function setTemplate(type) {
+            // Remove active class from all templates
+            document.querySelectorAll('.template').forEach(t => t.classList.remove('active'));
+            
+            // Add active class to clicked template
+            event.target.closest('.template').classList.add('active');
+            
+            const input = document.getElementById('githubUrl');
+            const baseUrl = input.value.replace(/\/releases.*$/, '') || 'https://github.com/JoshClays/NIT3004-IT-Capstone-Project-2';
+            
+            if (type === 'releases') {
+                input.value = baseUrl + '/releases/latest';
+            } else if (type === 'direct') {
+                input.value = baseUrl + '/releases/download/v1.0.0/app-release.apk';
+            }
+            
+            currentTemplate = type;
+            showPreview();
+        }
+
+        function showPreview() {
+            const url = document.getElementById('githubUrl').value;
+            if (url) {
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('previewUrl').textContent = url;
+            }
+        }
+
+        function generateQR() {
+            const url = document.getElementById('githubUrl').value.trim();
+            
+            if (!url) {
+                alert('Please enter your GitHub URL');
+                return;
+            }
+
+            if (!url.includes('github.com')) {
+                alert('Please enter a valid GitHub URL');
+                return;
+            }
+
+            // Clear previous QR code
+            document.getElementById('qrcode').innerHTML = '';
+            
+            // Generate QR code
+            QRCode.toCanvas(document.getElementById('qrcode'), url, {
+                width: 300,
+                height: 300,
+                colorDark: '#2c3e50',
+                colorLight: '#ffffff',
+                margin: 2,
+                errorCorrectionLevel: 'M'
+            }, function (error) {
+                if (error) {
+                    console.error(error);
+                    alert('Error generating QR code');
+                } else {
+                    console.log('QR code generated successfully!');
+                    document.getElementById('qrContainer').style.display = 'block';
+                    document.getElementById('qrContainer').scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        }
+
+        // Auto-preview on input
+        document.getElementById('githubUrl').addEventListener('input', showPreview);
+
+        // Set default template
+        window.addEventListener('load', function() {
+            document.querySelector('.template').click();
+        });
+    </script>
+</body>
+</html> 
