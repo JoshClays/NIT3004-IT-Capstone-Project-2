@@ -1,0 +1,26 @@
+TRANSACTION HISTORY REPORT
+Generated: June 10, 2025 at 03:45 PM
+Total Transactions: 14
+
+SUMMARY
+--------
+Total Income:  $2,950.00
+Total Expense: $839.00
+Net Amount:    $2,111.00
+
+TRANSACTION DETAILS
+-------------------
+Jun 01, 2025 | Freelance | Other | +$500.00
+Jun 01, 2025 | Dopa Donbur | Food | -$30.00
+Jun 01, 2025 | Uniqlo  | Shopping | -$100.00
+Jun 01, 2025 | Cinema  | Entertainment | -$40.00
+Jun 01, 2025 | Doolies | Cafe | +$450.00
+Jun 01, 2025 | Gym | Workout | -$56.00
+May 30, 2025 | JB-HIFI | Shopping | -$66.00
+May 29, 2025 | Bouldering | Workout | -$67.00
+May 20, 2025 | HM-Mart | Transport | -$35.00
+May 16, 2025 | Badminton | Entertainment | -$64.00
+May 14, 2025 | Intern  | Salary | +$2,000.00
+May 14, 2025 | Uniqlo | Shopping | -$300.00
+May 09, 2025 | Opal | Transport | -$25.00
+May 06, 2025 | Game | Shopping | -$56.00

@@ -1,5 +1,5 @@
-name: money_manager_app
-description: "expense tracker project"
+name: expense_tracker_app
+description: "A beautiful and intuitive expense tracker app"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -41,6 +41,7 @@ dependencies:
   csv: ^5.0.2
   pdf: ^3.11.3
   shared_preferences: ^2.2.2
+  share_plus: ^10.0.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

@@ -5,6 +5,9 @@ import '../models/transaction.dart';
 import '../services/export_service.dart';
 import '../services/database_services.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/modern_card.dart';
+import '../widgets/enhanced_export_dialog.dart';
 import 'add_transaction_screen.dart';
 
 class TransactionListScreen extends StatefulWidget {
@@ -23,7 +26,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   String? _selectedCategory;
   bool _showIncome = true;
   bool _showExpense = true;
-  bool _isExporting = false;
+
   bool _isLoading = true;
 
   @override
@@ -81,164 +84,15 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     });
   }
 
-  Future<void> _selectDateRange(BuildContext context) async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-      initialDateRange: _dateRange,
-    );
-    if (picked != null) {
-      setState(() {
-        _dateRange = picked;
-        _applyFilters();
-      });
-    }
-  }
-
-  Future<void> _exportData(BuildContext context, bool isPDF) async {
-    setState(() => _isExporting = true);
-
-    try {
-      final filePath = isPDF
-          ? await ExportService.exportToPDF(_filteredTransactions)
-          : await ExportService.exportToCSV(_filteredTransactions);
-
-      if (filePath != null && context.mounted) {
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Export Successful'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('File saved to:\n$filePath'),
-                const SizedBox(height: 16),
-                const Text('You can find this file in your device storage.'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isExporting = false);
-      }
-    }
-  }
-
-  Widget _buildCategoryChart(List<Transaction> transactions) {
-    // Filter only expenses for the chart
-    final expenses = transactions.where((t) => !t.isIncome).toList();
-
-    if (expenses.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // Group transactions by category and sum amounts
-    final categoryMap = <String, double>{};
-    for (final t in expenses) {
-      categoryMap.update(
-        t.category,
-            (value) => value + t.amount,
-        ifAbsent: () => t.amount,
-      );
-    }
-
-    // Generate colors for each category
-    final colors = [
-      Colors.blue.shade400,
-      Colors.green.shade400,
-      Colors.orange.shade400,
-      Colors.purple.shade400,
-      Colors.red.shade400,
-      Colors.teal.shade400,
-      Colors.pink.shade400,
-      Colors.amber.shade400,
-      Colors.indigo.shade400,
-      Colors.lime.shade400,
-    ];
-
-    return SizedBox(
-      height: 350,
-      child: Card(
-        elevation: 4,
-        margin: const EdgeInsets.all(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              const Text(
-                'Spending by Category',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: PieChart(
-                  PieChartData(
-                    sections: categoryMap.entries.map((entry) {
-                      final index = categoryMap.keys.toList().indexOf(entry.key);
-                      return PieChartSectionData(
-                        color: colors[index % colors.length],
-                        value: entry.value,
-                        title: '\$${entry.value.toStringAsFixed(0)}',
-                        radius: 55,
-                        titleStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      );
-                    }).toList(),
-                    sectionsSpace: 2,
-                    centerSpaceRadius: 40,
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 20,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categoryMap.length,
-                  itemBuilder: (context, index) {
-                    final category = categoryMap.keys.elementAt(index);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 12,
-                            height: 12,
-                            color: colors[index % colors.length],
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            category,
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _showExportDialog(BuildContext context) async {
+    await EnhancedExportDialog.show(
+      context, 
+      _filteredTransactions, 
+      title: 'Export ${_filteredTransactions.length} Transactions'
     );
   }
 
   Future<void> _showFilterDialog(BuildContext context, List<String> categories) async {
-    // Create local copies of the filter state for the dialog
     String? tempSelectedCategory = _selectedCategory;
     DateTimeRange? tempDateRange = _dateRange;
     bool tempShowIncome = _showIncome;
@@ -248,14 +102,11 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // Filter categories based on selected transaction types
           List<String> availableCategories = [];
           
           if (tempShowIncome && tempShowExpense) {
-            // Show all categories if both are selected
             availableCategories = categories;
           } else if (tempShowIncome && !tempShowExpense) {
-            // Show only categories that have income transactions
             availableCategories = _allTransactions
                 .where((t) => t.isIncome)
                 .map((t) => t.category)
@@ -263,7 +114,6 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 .toList()
               ..sort();
           } else if (!tempShowIncome && tempShowExpense) {
-            // Show only categories that have expense transactions
             availableCategories = _allTransactions
                 .where((t) => !t.isIncome)
                 .map((t) => t.category)
@@ -271,211 +121,378 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 .toList()
               ..sort();
           } else {
-            // If neither is selected, show no categories
             availableCategories = [];
           }
 
-          // Reset selected category if it's not in the available categories
           if (tempSelectedCategory != null && !availableCategories.contains(tempSelectedCategory)) {
             tempSelectedCategory = null;
           }
 
-          return AlertDialog(
-            title: const Text('Filter Transactions'),
-            content: SingleChildScrollView(
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: AppTheme.mediumShadow,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Transaction Type',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: tempShowIncome,
-                        onChanged: (value) {
-                          setDialogState(() {
-                            tempShowIncome = value ?? true;
-                            // Reset category when transaction type changes
-                            tempSelectedCategory = null;
-                          });
-                        },
-                      ),
-                      const Text('Income'),
-                      const SizedBox(width: 16),
-                      Checkbox(
-                        value: tempShowExpense,
-                        onChanged: (value) {
-                          setDialogState(() {
-                            tempShowExpense = value ?? true;
-                            // Reset category when transaction type changes
-                            tempSelectedCategory = null;
-                          });
-                        },
-                      ),
-                      const Text('Expense'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Date Range',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
                   Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ListTile(
-                      title: Text(
-                        tempDateRange == null
-                            ? 'Select Date Range'
-                            : '${DateFormat('MMM dd, yyyy').format(tempDateRange!.start)} - '
-                            '${DateFormat('MMM dd, yyyy').format(tempDateRange!.end)}',
-                        style: TextStyle(
-                          color: tempDateRange == null ? Colors.grey : Colors.black,
-                        ),
+                    padding: const EdgeInsets.all(20),
+                    decoration: const BoxDecoration(
+                      gradient: AppTheme.primaryGradient,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
                       ),
-                      trailing: Icon(
-                        Icons.calendar_today,
-                        color: tempDateRange == null ? Colors.grey : Colors.blue,
-                      ),
-                      onTap: () async {
-                        final DateTimeRange? picked = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime.now(),
-                          initialDateRange: tempDateRange,
-                        );
-                        if (picked != null) {
-                          setDialogState(() => tempDateRange = picked);
-                        }
-                      },
                     ),
-                  ),
-                  if (tempDateRange != null) 
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                          const SizedBox(width: 4),
-                          const Text('Date range selected', style: TextStyle(color: Colors.green, fontSize: 12)),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () {
-                              setDialogState(() => tempDateRange = null);
-                            },
-                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.tune_rounded, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Filter Transactions',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Category',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: availableCategories.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: Text(
-                              'Please select transaction type first',
-                              style: TextStyle(color: Colors.grey, fontSize: 14),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Transaction Type',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
                             ),
-                          )
-                        : DropdownButton<String>(
-                            value: tempSelectedCategory,
-                            hint: Text(
-                              tempShowIncome && !tempShowExpense
-                                  ? 'All Income Categories'
-                                  : !tempShowIncome && tempShowExpense
-                                      ? 'All Expense Categories'
-                                      : 'All Categories',
-                            ),
-                            isExpanded: true,
-                            underline: const SizedBox(),
-                            items: [
-                              DropdownMenuItem(
-                                value: null,
-                                child: Text(
-                                  tempShowIncome && !tempShowExpense
-                                      ? 'All Income Categories'
-                                      : !tempShowIncome && tempShowExpense
-                                          ? 'All Expense Categories'
-                                          : 'All Categories',
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      tempShowIncome = !tempShowIncome;
+                                      tempSelectedCategory = null;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: tempShowIncome 
+                                          ? AppTheme.incomeColor.withOpacity(0.1)
+                                          : Colors.grey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: tempShowIncome 
+                                            ? AppTheme.incomeColor
+                                            : Colors.grey.withOpacity(0.3),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.trending_up_rounded,
+                                          color: tempShowIncome 
+                                              ? AppTheme.incomeColor
+                                              : Colors.grey,
+                                          size: 28,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Income',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: tempShowIncome 
+                                                ? AppTheme.incomeColor
+                                                : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            color: tempShowIncome 
+                                                ? AppTheme.incomeColor
+                                                : Colors.transparent,
+                                            border: Border.all(
+                                              color: tempShowIncome 
+                                                  ? AppTheme.incomeColor
+                                                  : Colors.grey,
+                                              width: 2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: tempShowIncome
+                                              ? const Icon(
+                                                  Icons.check,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                )
+                                              : null,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
-                              ...availableCategories.map((category) => DropdownMenuItem(
-                                value: category,
-                                child: Text(category),
-                              )),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      tempShowExpense = !tempShowExpense;
+                                      tempSelectedCategory = null;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: tempShowExpense 
+                                          ? AppTheme.expenseColor.withOpacity(0.1)
+                                          : Colors.grey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: tempShowExpense 
+                                            ? AppTheme.expenseColor
+                                            : Colors.grey.withOpacity(0.3),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.trending_down_rounded,
+                                          color: tempShowExpense 
+                                              ? AppTheme.expenseColor
+                                              : Colors.grey,
+                                          size: 28,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Expense',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: tempShowExpense 
+                                                ? AppTheme.expenseColor
+                                                : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            color: tempShowExpense 
+                                                ? AppTheme.expenseColor
+                                                : Colors.transparent,
+                                            border: Border.all(
+                                              color: tempShowExpense 
+                                                  ? AppTheme.expenseColor
+                                                  : Colors.grey,
+                                              width: 2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: tempShowExpense
+                                              ? const Icon(
+                                                  Icons.check,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                )
+                                              : null,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
-                            onChanged: (value) {
-                              setDialogState(() => tempSelectedCategory = value);
-                            },
                           ),
-                  ),
-                  if (tempSelectedCategory != null) 
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                          const SizedBox(width: 4),
-                          Text('Category: $tempSelectedCategory', style: const TextStyle(color: Colors.green, fontSize: 12)),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () {
-                              setDialogState(() => tempSelectedCategory = null);
-                            },
-                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Date Range',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              title: Text(
+                                tempDateRange == null
+                                    ? 'Select Date Range'
+                                    : '${DateFormat('MMM dd, yyyy').format(tempDateRange!.start)} - '
+                                    '${DateFormat('MMM dd, yyyy').format(tempDateRange!.end)}',
+                                style: TextStyle(
+                                  color: tempDateRange == null ? Colors.grey : Colors.black,
+                                ),
+                              ),
+                              trailing: Icon(
+                                Icons.calendar_today_rounded,
+                                color: tempDateRange == null ? Colors.grey : AppTheme.primaryColor,
+                              ),
+                              onTap: () async {
+                                final DateTimeRange? picked = await showDateRangePicker(
+                                  context: context,
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime.now(),
+                                  initialDateRange: tempDateRange,
+                                );
+                                if (picked != null) {
+                                  setDialogState(() => tempDateRange = picked);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Category',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: availableCategories.isEmpty
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12.0),
+                                    child: Text(
+                                      'Please select transaction type first',
+                                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                                    ),
+                                  )
+                                : DropdownButton<String>(
+                                    value: tempSelectedCategory,
+                                    hint: Text(
+                                      tempShowIncome && !tempShowExpense
+                                          ? 'All Income Categories'
+                                          : !tempShowIncome && tempShowExpense
+                                              ? 'All Expense Categories'
+                                              : 'All Categories',
+                                    ),
+                                    isExpanded: true,
+                                    underline: const SizedBox(),
+                                    items: [
+                                      DropdownMenuItem(
+                                        value: null,
+                                        child: Text(
+                                          tempShowIncome && !tempShowExpense
+                                              ? 'All Income Categories'
+                                              : !tempShowIncome && tempShowExpense
+                                                  ? 'All Expense Categories'
+                                                  : 'All Categories',
+                                        ),
+                                      ),
+                                      ...availableCategories.map((category) => DropdownMenuItem(
+                                        value: category,
+                                        child: Text(category),
+                                      )),
+                                    ],
+                                    onChanged: (value) {
+                                      setDialogState(() => tempSelectedCategory = value);
+                                    },
+                                  ),
                           ),
                         ],
                       ),
                     ),
-                  if (availableCategories.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        'Available categories (${availableCategories.length}): ${availableCategories.join(', ')}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(20),
+                        bottomRight: Radius.circular(20),
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  // Show current filter summary
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        const Text(
-                          'Current Filters:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setDialogState(() {
+                                tempDateRange = null;
+                                tempSelectedCategory = null;
+                                tempShowIncome = true;
+                                tempShowExpense = true;
+                              });
+                            },
+                            icon: const Icon(Icons.clear_all_rounded),
+                            label: const Text('Reset All'),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _getFilterSummary(tempSelectedCategory, tempDateRange, tempShowIncome, tempShowExpense),
-                          style: const TextStyle(fontSize: 12),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _dateRange = tempDateRange;
+                                _selectedCategory = tempSelectedCategory;
+                                _showIncome = tempShowIncome;
+                                _showExpense = tempShowExpense;
+                                _applyFilters();
+                              });
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text('Apply Filters'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -483,36 +500,6 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  setDialogState(() {
-                    tempDateRange = null;
-                    tempSelectedCategory = null;
-                    tempShowIncome = true;
-                    tempShowExpense = true;
-                  });
-                },
-                child: const Text('Reset All'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _dateRange = tempDateRange;
-                    _selectedCategory = tempSelectedCategory;
-                    _showIncome = tempShowIncome;
-                    _showExpense = tempShowExpense;
-                    _applyFilters();
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text('Apply'),
-              ),
-            ],
           );
         },
       ),
@@ -553,7 +540,6 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     );
 
     if (result == true) {
-      // Refresh the transaction list
       _refreshTransactions();
     }
   }
@@ -651,16 +637,30 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   }
 
   void _refreshTransactions() {
-    // Reload transactions from database
     _loadTransactions();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
+      return Scaffold(
+        body: Container(
+          decoration: AppTheme.wealthBackgroundDecoration,
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  'Loading transactions...',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -671,117 +671,539 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
         .toList()
       ..sort();
 
-    // Check if any filters are active
     final hasActiveFilters = _selectedCategory != null || 
                            _dateRange != null || 
                            !_showIncome || 
                            !_showExpense;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('All Transactions'),
-        actions: [
-          if (_isExporting)
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.upload_file),
-              onSelected: (value) => _exportData(context, value == 'pdf'),
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'pdf',
-                  child: Text('Export to PDF'),
+      backgroundColor: AppTheme.backgroundLight,
+      body: Container(
+        decoration: AppTheme.wealthBackgroundDecoration,
+        child: CustomScrollView(
+          slivers: [
+            _buildSliverAppBar(context, categories, hasActiveFilters),
+            if (_filteredTransactions.isNotEmpty) ...[
+              _buildFilterSummary(context),
+              _buildCategoryChartSliver(),
+              _buildTransactionsList(),
+            ] else
+              _buildEmptyState(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar(BuildContext context, List<String> categories, bool hasActiveFilters) {
+    return SliverAppBar(
+      expandedHeight: 120,
+      floating: false,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
+        child: FlexibleSpaceBar(
+          title: Text(
+            'Transactions',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          centerTitle: true,
+          titlePadding: const EdgeInsets.only(bottom: 16),
+        ),
+      ),
+      actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const PopupMenuItem(
-                  value: 'csv',
-                  child: Text('Export to CSV'),
+                child: IconButton(
+                  icon: const Icon(Icons.upload_file_rounded, color: Colors.white),
+                  onPressed: () => _showExportDialog(context),
+                  tooltip: 'Export Transactions',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.tune_rounded, color: Colors.white),
+                      onPressed: () => _showFilterDialog(context, categories),
+                    ),
+                    if (hasActiveFilters)
+                      Positioned(
+                        right: 6,
+                        top: 6,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: AppTheme.error,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterSummary(BuildContext context) {
+    final hasActiveFilters = _selectedCategory != null || 
+                           _dateRange != null || 
+                           !_showIncome || 
+                           !_showExpense;
+    
+    if (!hasActiveFilters) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.info.withOpacity(0.1),
+              AppTheme.info.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.info.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.filter_alt_rounded, 
+                     color: AppTheme.info, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Active Filters',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.info,
+                  ),
                 ),
               ],
             ),
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_alt),
-                onPressed: () => _showFilterDialog(context, categories),
+            const SizedBox(height: 8),
+            Text(
+              _getFilterSummary(_selectedCategory, _dateRange, _showIncome, _showExpense),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondary,
               ),
-              if (hasActiveFilters)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return SliverFillRemaining(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.textSecondary.withOpacity(0.1),
+                  AppTheme.textSecondary.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Icon(
+              Icons.receipt_long_rounded,
+              size: 50,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'No transactions found',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Try adjusting your filters or add some transactions',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
-      body: _filteredTransactions.isEmpty
-          ? const Center(
-              child: Text(
-                'No transactions found\nTry adjusting your filters',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-          : Column(
-              children: [
-                _buildCategoryChart(_filteredTransactions),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _filteredTransactions.length,
-                    itemBuilder: (context, index) {
-                      final t = _filteredTransactions[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: t.isIncome
-                                  ? Colors.green[50]
-                                  : Colors.red[50],
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              t.isIncome
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              color: t.isIncome ? Colors.green : Colors.red,
-                            ),
+    );
+  }
+
+  Widget _buildCategoryChartSliver() {
+    // Determine which transactions to show based on filters
+    List<Transaction> chartTransactions;
+    bool isIncomeChart = false;
+    String chartTitle;
+    LinearGradient chartGradient;
+    IconData chartIcon;
+
+    if (_showIncome && !_showExpense) {
+      // Show income chart when only income is selected
+      chartTransactions = _filteredTransactions.where((t) => t.isIncome).toList();
+      isIncomeChart = true;
+      chartTitle = 'Income by Category';
+      chartGradient = AppTheme.incomeGradient;
+      chartIcon = Icons.trending_up_rounded;
+    } else {
+      // Show expense chart by default (when only expenses or both are selected)
+      chartTransactions = _filteredTransactions.where((t) => !t.isIncome).toList();
+      isIncomeChart = false;
+      chartTitle = 'Spending by Category';
+      chartGradient = AppTheme.expenseGradient;
+      chartIcon = Icons.trending_down_rounded;
+    }
+
+    if (chartTransactions.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    final categoryMap = <String, double>{};
+    for (final t in chartTransactions) {
+      categoryMap.update(
+        t.category,
+            (value) => value + t.amount,
+        ifAbsent: () => t.amount,
+      );
+    }
+
+    // Different color palettes for income vs expense
+    final expenseColors = [
+      const Color(0xFF667EEA),
+      const Color(0xFF764BA2),
+      const Color(0xFFFF6B6B),
+      const Color(0xFF4ECDC4),
+      const Color(0xFF45B7D1),
+      const Color(0xFF96CEB4),
+      const Color(0xFFF38BA8),
+      const Color(0xFFA8E6CF),
+      const Color(0xFFFFD93D),
+      const Color(0xFF6BCF7F),
+    ];
+
+    final incomeColors = [
+      const Color(0xFF11998E),
+      const Color(0xFF38EF7D),
+      const Color(0xFF4FACFE),
+      const Color(0xFF00F2FE),
+      const Color(0xFF56CCF2),
+      const Color(0xFF2F80ED),
+      const Color(0xFF6FCF97),
+      const Color(0xFF27AE60),
+      const Color(0xFF00D2FF),
+      const Color(0xFF3A47D5),
+    ];
+
+    final colors = isIncomeChart ? incomeColors : expenseColors;
+
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: AppTheme.lightShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: chartGradient,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      chartIcon,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          chartTitle,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
-                          title: Text(t.title),
-                          subtitle: Text(
-                              '${t.category} • ${DateFormat('MMM dd, yyyy').format(t.date)}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        ),
+                        Text(
+                          '${categoryMap.length} categories',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Add a badge to indicate chart type
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isIncomeChart 
+                          ? AppTheme.incomeColor.withOpacity(0.1)
+                          : AppTheme.expenseColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isIncomeChart 
+                            ? AppTheme.incomeColor.withOpacity(0.3)
+                            : AppTheme.expenseColor.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Text(
+                      isIncomeChart ? 'Income' : 'Expenses',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: isIncomeChart 
+                            ? AppTheme.incomeColor
+                            : AppTheme.expenseColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 250,
+                child: PieChart(
+                  PieChartData(
+                    sections: categoryMap.entries.map((entry) {
+                      final index = categoryMap.keys.toList().indexOf(entry.key);
+                      final color = colors[index % colors.length];
+                      return PieChartSectionData(
+                        color: color,
+                        value: entry.value,
+                        title: '\$${entry.value.toStringAsFixed(0)}',
+                        radius: 80,
+                        titleStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      );
+                    }).toList(),
+                    sectionsSpace: 4,
+                    centerSpaceRadius: 50,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: categoryMap.entries.map((entry) {
+                  final index = categoryMap.keys.toList().indexOf(entry.key);
+                  final color = colors[index % colors.length];
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: color.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          entry.key,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionsList() {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Added extra bottom padding
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final transaction = _filteredTransactions[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: AppTheme.lightShadow,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _editTransaction(transaction),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: transaction.isIncome 
+                                ? AppTheme.incomeGradient 
+                                : AppTheme.expenseGradient,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            transaction.isIncome
+                                ? Icons.trending_up_rounded
+                                : Icons.trending_down_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${t.isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: t.isIncome ? Colors.green : Colors.red,
+                                transaction.title,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              PopupMenuButton<String>(
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: transaction.isIncome 
+                                          ? AppTheme.incomeColor.withOpacity(0.1)
+                                          : AppTheme.expenseColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      transaction.category,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                        color: transaction.isIncome 
+                                            ? AppTheme.incomeColor
+                                            : AppTheme.expenseColor,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.calendar_today_rounded,
+                                    size: 12,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    DateFormat('MMM dd, yyyy').format(transaction.date),
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${transaction.isIncome ? '+' : '-'}\$${transaction.amount.toStringAsFixed(2)}',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: transaction.isIncome 
+                                    ? AppTheme.incomeColor 
+                                    : AppTheme.expenseColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: AppTheme.textSecondary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: PopupMenuButton<String>(
+                                padding: EdgeInsets.zero,
+                                icon: Icon(
+                                  Icons.more_horiz_rounded,
+                                  color: AppTheme.textSecondary,
+                                  size: 18,
+                                ),
                                 onSelected: (value) async {
                                   if (value == 'edit') {
-                                    await _editTransaction(t);
+                                    await _editTransaction(transaction);
                                   } else if (value == 'delete') {
-                                    await _deleteTransaction(t);
+                                    await _deleteTransaction(transaction);
                                   }
                                 },
                                 itemBuilder: (context) => [
@@ -789,7 +1211,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                                     value: 'edit',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.edit, size: 18),
+                                        Icon(Icons.edit_rounded, size: 18),
                                         SizedBox(width: 8),
                                         Text('Edit'),
                                       ],
@@ -799,23 +1221,27 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                                     value: 'delete',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.delete, size: 18, color: Colors.red),
+                                        Icon(Icons.delete_rounded, size: 18, color: AppTheme.error),
                                         SizedBox(width: 8),
-                                        Text('Delete', style: TextStyle(color: Colors.red)),
+                                        Text('Delete', style: TextStyle(color: AppTheme.error)),
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            );
+          },
+          childCount: _filteredTransactions.length,
+        ),
+      ),
     );
   }
 }
