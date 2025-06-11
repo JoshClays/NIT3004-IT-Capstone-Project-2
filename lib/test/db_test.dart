@@ -17,11 +17,11 @@ void main() {
     late DatabaseService dbService;
 
     setUp(() async {
+      // Reset database to ensure clean state
+      await DatabaseService.resetDatabase();
       dbService = DatabaseService.instance;
-      // Clear database before each test
+      // Initialize database
       await dbService.database;
-      await dbService.database.delete('users');
-      await dbService.database.delete('transactions');
     });
 
     test('User CRUD Operations', () async {
@@ -66,7 +66,7 @@ void main() {
     });
 
     tearDown(() async {
-      await dbService.close();
+      // Cleanup handled by resetDatabase() in setUp
     });
   });
 }

@@ -4,7 +4,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../services/database_services.dart';
 import '../services/auth_service.dart';
 import '../models/budget.dart';
-import '../models/transaction.dart';
+import '../models/transaction.dart' as transactionLib;
 import '../models/user.dart';
 
 void main() {
@@ -19,15 +19,13 @@ void main() {
     late User testUser;
 
     setUp(() async {
+      // Reset database to ensure clean state
+      await DatabaseService.resetDatabase();
       dbService = DatabaseService.instance;
       authService = AuthService();
       
-      // Clear database before each test
+      // Initialize database
       await dbService.database;
-      final db = await dbService.database;
-      await db.delete('users');
-      await db.delete('budgets');
-      await db.delete('transactions');
       
       // Create test user
       await authService.registerUser('Budget User', 'budget@example.com', 'password123');
@@ -106,7 +104,7 @@ void main() {
 
       test('should calculate budget progress correctly', () async {
         // Add some transactions in the budget category
-        final transaction1 = Transaction(
+        final transaction1 = transactionLib.Transaction(
           title: 'Groceries',
           amount: 150.0,
           date: DateTime.now(),
@@ -114,7 +112,7 @@ void main() {
           isIncome: false,
         );
         
-        final transaction2 = Transaction(
+        final transaction2 = transactionLib.Transaction(
           title: 'Restaurant',
           amount: 75.0,
           date: DateTime.now(),
@@ -143,7 +141,7 @@ void main() {
 
       test('should handle budget overspending', () async {
         // Add transactions that exceed the budget
-        final transaction1 = Transaction(
+        final transaction1 = transactionLib.Transaction(
           title: 'Expensive Dinner',
           amount: 300.0,
           date: DateTime.now(),
@@ -151,7 +149,7 @@ void main() {
           isIncome: false,
         );
         
-        final transaction2 = Transaction(
+        final transaction2 = transactionLib.Transaction(
           title: 'Weekly Groceries',
           amount: 250.0,
           date: DateTime.now(),
@@ -192,7 +190,7 @@ void main() {
 
         // Add transactions for different categories
         await dbService.createTransaction(
-          Transaction(
+          transactionLib.Transaction(
             title: 'Groceries',
             amount: 100.0,
             date: DateTime.now(),
@@ -203,7 +201,7 @@ void main() {
         );
         
         await dbService.createTransaction(
-          Transaction(
+          transactionLib.Transaction(
             title: 'Bus Pass',
             amount: 50.0,
             date: DateTime.now(),
@@ -239,7 +237,7 @@ void main() {
           budget_limit: 1000.0,
           spent: 0.0,
           startDate: DateTime(now.year, now.month, 1),
-          endDate: DateTime(now.year, now.month + 1, 0),
+          endDate: DateTime(now.year, now.month + 1, 1).subtract(const Duration(days: 1)),
         );
 
         await dbService.createBudget(budget, testUser.id!);
@@ -247,7 +245,8 @@ void main() {
         
         // Verify it's a monthly budget
         expect(savedBudget.startDate.day, 1); // First day of month
-        expect(savedBudget.endDate.month, now.month + 1 > 12 ? 1 : now.month + 1);
+        // End date should be the last day of the current month
+        expect(savedBudget.endDate.month, now.month);
       });
 
       test('should filter transactions by budget period', () async {
@@ -266,7 +265,7 @@ void main() {
 
         // Transaction within budget period
         await dbService.createTransaction(
-          Transaction(
+          transactionLib.Transaction(
             title: 'Valid Transaction',
             amount: 50.0,
             date: DateTime.now(),
@@ -278,7 +277,7 @@ void main() {
 
         // Transaction outside budget period (before)
         await dbService.createTransaction(
-          Transaction(
+          transactionLib.Transaction(
             title: 'Old Transaction',
             amount: 100.0,
             date: budgetStart.subtract(const Duration(days: 5)),
@@ -303,7 +302,7 @@ void main() {
     });
 
     tearDown(() async {
-      await dbService.close();
+      // Clean up is handled by resetDatabase() in setUp
     });
   });
 } 

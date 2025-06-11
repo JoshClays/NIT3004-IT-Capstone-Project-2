@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import '../models/user.dart';
-import '../models/transaction.dart';
+import '../models/transaction.dart' as transactionLib;
 import '../models/budget.dart';
 import '../models/category.dart';
 
@@ -79,7 +79,7 @@ void main() {
     group('Transaction Model', () {
       test('should convert to and from map with all fields', () async {
         final testDate = DateTime(2024, 1, 15);
-        final transaction = Transaction(
+        final transaction = transactionLib.Transaction(
           id: 1,
           title: 'Grocery Shopping',
           amount: 45.67,
@@ -100,7 +100,7 @@ void main() {
         expect(map['description'], 'Weekly groceries at supermarket');
 
         // Test fromMap
-        final transactionFromMap = Transaction.fromMap(map);
+        final transactionFromMap = transactionLib.Transaction.fromMap(map);
         expect(transactionFromMap.id, transaction.id);
         expect(transactionFromMap.title, transaction.title);
         expect(transactionFromMap.amount, transaction.amount);
@@ -111,7 +111,7 @@ void main() {
       });
 
       test('should handle income transaction correctly', () async {
-        final transaction = Transaction(
+        final transaction = transactionLib.Transaction(
           title: 'Freelance Payment',
           amount: 1200.0,
           date: DateTime.now(),
@@ -122,12 +122,12 @@ void main() {
         final map = transaction.toMap();
         expect(map['isIncome'], 1); // true converts to 1
 
-        final transactionFromMap = Transaction.fromMap(map);
+        final transactionFromMap = transactionLib.Transaction.fromMap(map);
         expect(transactionFromMap.isIncome, isTrue);
       });
 
       test('should handle null description', () async {
-        final transaction = Transaction(
+        final transaction = transactionLib.Transaction(
           title: 'Cash Withdrawal',
           amount: 100.0,
           date: DateTime.now(),
@@ -138,12 +138,12 @@ void main() {
         final map = transaction.toMap();
         expect(map['description'], isNull);
 
-        final transactionFromMap = Transaction.fromMap(map);
+        final transactionFromMap = transactionLib.Transaction.fromMap(map);
         expect(transactionFromMap.description, isNull);
       });
 
       test('should validate amount precision', () async {
-        final transaction = Transaction(
+        final transaction = transactionLib.Transaction(
           title: 'Precise Amount',
           amount: 123.456789,
           date: DateTime.now(),
@@ -152,7 +152,7 @@ void main() {
         );
 
         final map = transaction.toMap();
-        final transactionFromMap = Transaction.fromMap(map);
+        final transactionFromMap = transactionLib.Transaction.fromMap(map);
         
         // Amount should maintain precision through conversion
         expect(transactionFromMap.amount, transaction.amount);
@@ -314,7 +314,7 @@ void main() {
     group('Data Consistency Tests', () {
       test('should maintain data types through conversion cycle', () async {
         // Test that all numeric types are preserved
-        final transaction = Transaction(
+        final transaction = transactionLib.Transaction(
           title: 'Test Transaction',
           amount: 99.99,
           date: DateTime.now(),
@@ -323,7 +323,7 @@ void main() {
         );
 
         final map = transaction.toMap();
-        final restored = Transaction.fromMap(map);
+        final restored = transactionLib.Transaction.fromMap(map);
         
         expect(restored.amount, isA<double>());
         expect(restored.amount, equals(transaction.amount));
@@ -331,7 +331,7 @@ void main() {
 
       test('should handle edge case values', () async {
         // Test with extreme values
-        final transaction = Transaction(
+        final transaction = transactionLib.Transaction(
           title: 'Edge Case',
           amount: 0.01, // Minimum currency amount
           date: DateTime.now(),
@@ -340,7 +340,7 @@ void main() {
         );
 
         final map = transaction.toMap();
-        final restored = Transaction.fromMap(map);
+        final restored = transactionLib.Transaction.fromMap(map);
         
         expect(restored.amount, 0.01);
       });
